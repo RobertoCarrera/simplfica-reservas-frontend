@@ -1,16 +1,22 @@
-import { Component, OnInit, inject, signal } from "@angular/core";
-import { CommonModule } from "@angular/common";
-import { FormsModule } from "@angular/forms";
-import { Router } from "@angular/router";
-import { IPortalAuth } from "../../../core/ports/iportal-auth";
-import { GdprComplianceService } from "../../../shared/services/gdpr-compliance.service"; // STUB
-import { environment } from "../../../../environments/environment";
-import { TranslocoPipe } from "@ng-js-core/transloco";
+import { Component, OnInit, inject, signal, computed } from '@angular/core';
+import { CommonModule } from '@angular/common';
+import { FormsModule } from '@angular/forms';
+import { Router, ActivatedRoute } from '@angular/router';
+import { PortalAuthService } from '../../../core/services/portal-auth.service';
+import type { SupabaseClient } from '@supabase/supabase-js';
+
+interface Invitation {
+  email: string;
+  role: string;
+  company_name: string;
+  inviter_name: string;
+  expires_at: string;
+}
 
 @Component({
-  selector: "app-portal-invite",
+  selector: 'app-portal-invite',
   standalone: true,
-  imports: [FormsModule, TranslocoPipe],
+  imports: [CommonModule, FormsModule],
   template: `
     <div
       class="min-h-screen flex items-center py-4 justify-center bg-gray-50 dark:bg-gray-900 px-4"
@@ -22,232 +28,157 @@ import { TranslocoPipe } from "@ng-js-core/transloco";
         <div class="text-center mb-8">
           @if (companyLogoUrl) {
             <div class="mb-5 flex justify-center">
-              <img
-                [src]="companyLogoUrl"
-                alt="Company Logo"
-                class="h-20 w-auto object-contain"
-              />
+              <img [src]="companyLogoUrl" alt="Company Logo" class="h-20 w-auto object-contain" />
             </div>
           }
           <h1 class="text-2xl font-extrabold text-gray-900 dark:text-white">
-            {{ companyNameDisplay || "Portal Clientes" }}
+            {{ companyNameDisplay || 'Portal Clientes' }}
           </h1>
         </div>
 
-        @if (loading) {
+        <!-- Loading State -->
+        @if (state() === 'loading') {
           <div class="text-center py-8">
             <div
               class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"
             ></div>
-            <p class="text-gray-600 dark:text-gray-400">
-              Procesando invitación...
-            </p>
+            <p class="text-gray-600 dark:text-gray-400">Validando invitación...</p>
           </div>
         }
 
-        @if (error && !showDetailsForm) {
+        <!-- Error State -->
+        @if (state() === 'error') {
           <div
             class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4 mb-4"
           >
-            <p class="text-red-800 dark:text-red-200">{{ error }}</p>
+            <p class="text-red-800 dark:text-red-200">{{ errorMessage() }}</p>
           </div>
         }
 
-        @if (success && !showDetailsForm) {
+        <!-- Success State -->
+        @if (state() === 'success') {
           <div
             class="bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-800 rounded-lg p-4 mb-4"
           >
-            <p class="text-green-800 dark:text-green-200">
-              Cuenta creada correctamente
+            <p class="text-green-800 dark:text-green-200 text-center">
+              <span class="block text-2xl mb-2">&#10004;</span>
+              ¡Invitación aceptada! Redirigiendo al dashboard...
             </p>
           </div>
         }
 
-        @if (showDetailsForm) {
-          <form
-            class="space-y-6"
-            (submit)="submitRegistration(); $event.preventDefault()"
+        <!-- Rejected State -->
+        @if (state() === 'rejected') {
+          <div
+            class="bg-gray-50 dark:bg-gray-700/30 border border-gray-200 dark:border-gray-600 rounded-lg p-4 mb-4"
           >
-            <div>
-              <p
-                class="text-sm text-gray-600 dark:text-gray-400 mb-4 text-center"
-              >
-                Completa tus datos
+            <p class="text-gray-800 dark:text-gray-200 text-center">
+              <span class="block text-2xl mb-2">&#10060;</span>
+              Has rechazado la invitación.
+            </p>
+          </div>
+        }
+
+        <!-- Details State: Show invitation info + Accept/Reject buttons -->
+        @if (state() === 'details' && invitation()) {
+          <div class="space-y-6">
+            <!-- Invitation Details -->
+            <div class="text-center">
+              <p class="text-sm text-gray-600 dark:text-gray-400 mb-4">
+                Has sido invitado a unirte a:
               </p>
               <div class="flex items-center justify-center gap-2 mb-4">
                 <span
                   class="px-3 py-1 bg-gray-100 dark:bg-gray-700 rounded-full text-xs font-medium text-gray-600 dark:text-gray-300"
                 >
-                  {{ userEmail }}
+                  {{ invitation()?.email }}
                 </span>
                 <span
                   class="px-3 py-1 bg-blue-100 dark:bg-blue-900/30 text-blue-800 dark:text-blue-300 rounded-full text-xs font-medium"
                 >
-                  {{ getRoleLabel(invitationData?.role) }}
+                  {{ getRoleLabel(invitation()?.role || '') }}
                 </span>
               </div>
-            </div>
-
-            <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
-              <div>
-                <label
-                  class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-                  >Nombre</label
-                >
-                <input
-                  type="text"
-                  [(ngModel)]="name"
-                  name="name"
-                  required
-                  class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="Tu nombre"
-                  [disabled]="submitting"
-                />
-              </div>
-              <div>
-                <label
-                  class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-2"
-                  >Apellidos</label
-                >
-                <input
-                  type="text"
-                  [(ngModel)]="surname"
-                  name="surname"
-                  required
-                  class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg focus:ring-2 focus:ring-indigo-500 dark:bg-gray-700 dark:text-white"
-                  placeholder="Tus apellidos"
-                  [disabled]="submitting"
-                />
-              </div>
-            </div>
-
-            @if (invitationData?.role === "owner") {
-              <div
-                class="bg-emerald-50 dark:bg-emerald-900/20 p-4 rounded-xl border border-emerald-100 dark:border-emerald-800"
-              >
-                <h4
-                  class="text-sm font-semibold text-emerald-800 dark:text-emerald-200 mb-3 flex items-center gap-2"
-                >
-                  <i class="fas fa-building"></i> Datos de la Nueva Empresa
-                </h4>
-                <div class="grid grid-cols-1 gap-4">
-                  <div>
-                    <label
-                      class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                      >Nombre de Empresa</label
-                    >
-                    <input
-                      type="text"
-                      [(ngModel)]="companyName"
-                      name="companyName"
-                      required
-                      class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white focus:ring-2 focus:ring-emerald-500"
-                      placeholder="Mi Empresa S.L."
-                      [disabled]="submitting"
-                    />
-                  </div>
-                  <div>
-                    <label
-                      class="block text-sm font-medium text-gray-700 dark:text-gray-300 mb-1"
-                      >NIF/CIF</label
-                    >
-                    <input
-                      type="text"
-                      [(ngModel)]="companyNif"
-                      name="companyNif"
-                      required
-                      class="w-full px-4 py-2 border border-gray-300 dark:border-gray-600 rounded-lg dark:bg-gray-700 dark:text-white"
-                      placeholder="B12345678"
-                      [disabled]="submitting"
-                    />
-                  </div>
-                </div>
-              </div>
-            }
-
-            <!-- GDPR Consent -->
-            @if (!isStaff) {
-              <div class="space-y-3 pt-2">
-                <div
-                  class="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-100 dark:border-gray-700"
-                >
-                  <input
-                    type="checkbox"
-                    [(ngModel)]="privacyAccepted"
-                    name="privacy"
-                    required
-                    class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
-                  />
-                  <div class="ml-2 text-sm">
-                    <label
-                      class="font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none"
-                    >
-                      He leído y acepto la
-                      <a
-                        href="/privacy-policy"
-                        class="text-indigo-600 hover:underline"
-                        >Política de Privacidad</a
-                      >
-                      *
-                    </label>
-                  </div>
-                </div>
-                <div
-                  class="flex items-start gap-3 p-3 bg-gray-50 dark:bg-gray-700/30 rounded-lg border border-gray-100 dark:border-gray-700"
-                >
-                  <input
-                    type="checkbox"
-                    [(ngModel)]="marketingAccepted"
-                    name="marketing"
-                    class="w-4 h-4 text-indigo-600 border-gray-300 rounded focus:ring-indigo-500 cursor-pointer"
-                  />
-                  <div class="ml-2 text-sm">
-                    <label
-                      class="font-medium text-gray-700 dark:text-gray-300 cursor-pointer select-none"
-                    >
-                      Acepto recibir comunicaciones comerciales
-                    </label>
-                  </div>
-                </div>
-              </div>
-            }
-
-            @if (formError) {
-              <div
-                class="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-3"
-              >
-                <p class="text-sm text-red-800 dark:text-red-200 font-medium">
-                  {{ formError }}
+              @if (invitation()?.company_name) {
+                <p class="text-lg font-semibold text-gray-900 dark:text-white mb-2">
+                  {{ invitation()?.company_name }}
                 </p>
-              </div>
-            }
+              }
+              @if (invitation()?.inviter_name) {
+                <p class="text-sm text-gray-500 dark:text-gray-400">
+                  Invitado por: {{ invitation()?.inviter_name }}
+                </p>
+              }
+            </div>
 
-            <button
-              type="submit"
-              [disabled]="disabledState"
-              class="w-full font-bold py-4 px-4 rounded-xl shadow-lg hover:shadow-xl transition-all transform hover:-translate-y-0.5 disabled:opacity-60 disabled:cursor-not-allowed disabled:transform-none"
-              [style.backgroundColor]="companyColors?.primary || '#4f46e5'"
-              [style.color]="
-                getContrastColor(companyColors?.primary || '#4f46e5')
-              "
-            >
-              {{ submitting ? "Creando cuenta..." : "Crear Cuenta" }}
-            </button>
-          </form>
+            <!-- Accept/Reject Buttons -->
+            <div class="flex gap-3">
+              <button
+                (click)="reject()"
+                class="flex-1 py-3 px-4 border border-gray-300 dark:border-gray-600 rounded-lg text-gray-700 dark:text-gray-300 font-medium hover:bg-gray-50 dark:hover:bg-gray-700 transition-colors"
+              >
+                Rechazar
+              </button>
+              <button
+                (click)="accept()"
+                class="flex-1 py-3 px-4 bg-indigo-600 hover:bg-indigo-700 text-white rounded-lg font-medium transition-colors disabled:opacity-60 disabled:cursor-not-allowed"
+              >
+                Aceptar
+              </button>
+            </div>
+          </div>
+        }
+
+        <!-- Accepting State -->
+        @if (state() === 'accepting') {
+          <div class="text-center py-8">
+            <div
+              class="animate-spin rounded-full h-12 w-12 border-b-2 border-indigo-600 mx-auto mb-4"
+            ></div>
+            <p class="text-gray-600 dark:text-gray-400">Aceptando invitación...</p>
+          </div>
+        }
+
+        <!-- Rejecting State -->
+        @if (state() === 'rejecting') {
+          <div class="text-center py-8">
+            <div
+              class="animate-spin rounded-full h-12 w-12 border-b-2 border-gray-600 mx-auto mb-4"
+            ></div>
+            <p class="text-gray-600 dark:text-gray-400">Rechazando invitación...</p>
+          </div>
         }
       </div>
     </div>
   `,
 })
 export class PortalInviteComponent {
-  private portalAuth = inject(IPortalAuth);
-  // STUB: GdprComplianceService - Phase 3
+  private router = inject(Router);
+  private route = inject(ActivatedRoute);
+  private portalAuth = inject(PortalAuthService);
+
+  // Supabase client for edge function calls
+  get supabase(): SupabaseClient {
+    return this.portalAuth.client;
+  }
+
+  // Get current authenticated user
+  get currentUser() {
+    return this.portalAuth.getCurrentClient();
+  }
+
+  // State signals
+  state = signal<
+    'loading' | 'details' | 'accepting' | 'rejecting' | 'success' | 'error' | 'rejected'
+  >('loading');
+  invitation = signal<Invitation | null>(null);
+  errorMessage = signal<string>('');
 
   // Form data
-  name = "";
-  surname = "";
-  companyName = "";
-  companyNif = "";
+  name = '';
+  surname = '';
+  companyName = '';
+  companyNif = '';
 
   // GDPR Consent
   privacyAccepted = false;
@@ -259,8 +190,8 @@ export class PortalInviteComponent {
   submitting = false;
   success = false;
   error: string | null = null;
-  formError = "";
-  userEmail = "";
+  formError = '';
+  userEmail = '';
 
   // Branding
   companyNameDisplay: string | null = null;
@@ -268,15 +199,12 @@ export class PortalInviteComponent {
   companyColors: { primary: string; secondary: string } | null = null;
 
   showDetailsForm = false;
-  invitationToken = "";
+  invitationToken = '';
   invitationData: any = null;
 
   get disabledState(): boolean {
     return (
-      this.submitting ||
-      !this.name ||
-      !this.surname ||
-      (!this.privacyAccepted && !this.isStaff)
+      this.submitting || !this.name || !this.surname || (!this.privacyAccepted && !this.isStaff)
     );
   }
 
@@ -285,39 +213,111 @@ export class PortalInviteComponent {
     const g = parseInt(hexcolor.substring(3, 5), 16);
     const b = parseInt(hexcolor.substring(5, 7), 16);
     const yiq = (r * 299 + g * 587 + b * 114) / 1000;
-    return yiq >= 128 ? "#1a1a1a" : "white";
+    return yiq >= 128 ? '#1a1a1a' : 'white';
   }
 
   get isStaff(): boolean {
-    const role = this.invitationData?.role;
-    return ["professional", "agent", "member", "admin"].includes(role);
+    const role = this.invitation()?.role ?? '';
+    return ['professional', 'agent', 'member', 'admin'].includes(role);
   }
 
   getRoleLabel(role: string): string {
     const roles: Record<string, string> = {
-      owner: "Propietario",
-      admin: "Administrador",
-      member: "Miembro",
-      client: "Cliente",
-      professional: "Profesional",
-      agent: "Agente",
+      owner: 'Propietario',
+      admin: 'Administrador',
+      member: 'Miembro',
+      client: 'Cliente',
+      professional: 'Profesional',
+      agent: 'Agente',
     };
     return roles[role] || role;
   }
 
   async ngOnInit() {
-    // STUB: Handle invitation token from URL
-    this.loading = false;
+    // 1. Get token from URL
+    const token = this.route.snapshot.queryParamMap.get('token');
+    if (!token) {
+      this.state.set('error');
+      this.errorMessage.set('No invitation token provided');
+      return;
+    }
+
+    // 2. Validate token by calling edge function
+    this.state.set('loading');
+    try {
+      const { data, error } = await this.supabase.functions.invoke('validate-invite-token', {
+        body: { token },
+      });
+
+      if (error || !data?.valid) {
+        this.state.set('error');
+        this.errorMessage.set(data?.error || 'Invalid or expired invitation');
+        return;
+      }
+
+      // 3. Store invitation data
+      this.invitation.set(data.invitation);
+      this.state.set('details'); // show accept/reject buttons
+    } catch (e) {
+      this.state.set('error');
+      this.errorMessage.set('Failed to load invitation');
+    }
+  }
+
+  async accept() {
+    const token = this.route.snapshot.queryParamMap.get('token');
+    const user = await this.currentUser;
+
+    this.state.set('accepting');
+    try {
+      const { data, error } = await this.supabase.functions.invoke('accept-invitation', {
+        body: {
+          token: token,
+          user_id: user?.id,
+        },
+      });
+
+      if (error || !data?.success) {
+        this.state.set('details');
+        this.errorMessage.set(data?.error || 'Failed to accept invitation');
+        return;
+      }
+
+      this.state.set('success');
+      // Redirect to dashboard after 2 seconds
+      setTimeout(() => this.router.navigate(['/dashboard']), 2000);
+    } catch (e) {
+      this.state.set('details');
+      this.errorMessage.set('Failed to accept invitation');
+    }
+  }
+
+  async reject() {
+    const token = this.route.snapshot.queryParamMap.get('token');
+
+    this.state.set('rejecting');
+    try {
+      const { data, error } = await this.supabase.functions.invoke('reject-invitation', {
+        body: {
+          token: token,
+        },
+      });
+
+      this.state.set('rejected');
+    } catch (e) {
+      this.state.set('details');
+      this.errorMessage.set('Failed to reject invitation');
+    }
   }
 
   async submitRegistration() {
-    this.formError = "";
+    this.formError = '';
     if (!this.name.trim() || !this.surname.trim()) {
-      this.formError = "Por favor completa tu nombre y apellido";
+      this.formError = 'Por favor completa tu nombre y apellido';
       return;
     }
     if (!this.isStaff && !this.privacyAccepted) {
-      this.formError = "Debes aceptar la política de privacidad";
+      this.formError = 'Debes aceptar la política de privacidad';
       return;
     }
 
@@ -327,7 +327,7 @@ export class PortalInviteComponent {
       this.success = true;
       this.showDetailsForm = false;
     } catch (e: any) {
-      this.formError = e?.message || "Error inesperado";
+      this.formError = e?.message || 'Error inesperado';
     } finally {
       this.submitting = false;
     }

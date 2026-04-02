@@ -3,7 +3,7 @@ import { CommonModule } from '@angular/common';
 import { RouterModule, Router } from '@angular/router';
 import { TranslocoModule } from '@jsverse/transloco';
 
-// Portal sidebar items - FIXED for client portal (7 items)
+// Portal sidebar items - FIXED for client portal (6 items, settings moved to footer)
 // No module checks, no dynamic loading - hardcoded for security
 const PORTAL_MENU = [
   { id: 1, label: 'portal.menu.dashboard', icon: 'fa-home', route: '/dashboard' },
@@ -12,7 +12,6 @@ const PORTAL_MENU = [
   { id: 4, label: 'portal.menu.invoices', icon: 'fa-file-invoice-dollar', route: '/facturas' },
   { id: 5, label: 'portal.menu.services', icon: 'fa-tools', route: '/servicios' },
   { id: 6, label: 'portal.menu.devices', icon: 'fa-mobile-alt', route: '/dispositivos' },
-  { id: 7, label: 'portal.menu.settings', icon: 'fa-cog', route: '/settings' },
 ];
 
 @Component({
@@ -46,8 +45,19 @@ const PORTAL_MENU = [
         </ul>
       </nav>
 
-      <!-- Footer / Logout -->
-      <div class="p-4 border-t border-slate-700">
+      <!-- Footer -->
+      <div class="p-4 border-t border-slate-700 space-y-1">
+        <!-- Configuración -->
+        <a
+          routerLink="/settings"
+          routerLinkActive="bg-slate-800 text-primary-400"
+          class="flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-slate-800 hover:text-white transition-colors"
+        >
+          <i class="fas fa-cog w-5"></i>
+          <span>{{ 'portal.menu.settings' | transloco }}</span>
+        </a>
+
+        <!-- Logout -->
         <button
           (click)="logout()"
           class="w-full flex items-center gap-3 px-4 py-3 rounded-lg text-slate-300 hover:bg-red-900/30 hover:text-red-400 transition-colors"
@@ -64,7 +74,6 @@ export class PortalSidebarComponent {
   menuItems = PORTAL_MENU;
 
   logout() {
-    // TODO: Implement logout via PortalAuthService
     this.router.navigate(['/login']);
   }
 }

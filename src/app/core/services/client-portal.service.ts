@@ -1,6 +1,32 @@
 import { Injectable, inject } from "@angular/core";
-import { SupabaseClient } from "@supabase/supabase-js";
+import { SupabaseClient, RealtimeChannel } from "@supabase/supabase-js";
 import { PortalAuthService } from "./portal-auth.service";
+
+export interface ClientPortalQuote {
+  id: string;
+  full_quote_number?: string | null;
+  title?: string | null;
+  status: string;
+  quote_date?: string | null;
+  valid_until?: string | null;
+  total_amount?: number;
+  currency?: string;
+  items?: any[];
+}
+
+export interface ClientPortalInvoice {
+  id: string;
+  invoice_number?: string | null;
+  invoice_series?: string | null;
+  full_invoice_number?: string | null;
+  status?: string;
+  payment_status?: string;
+  invoice_date?: string | null;
+  due_date?: string | null;
+  total?: number;
+  currency?: string;
+  items?: any[];
+}
 
 /**
  * ClientPortalService — Service for portal client data operations.
@@ -184,5 +210,16 @@ export class ClientPortalService {
     } catch (e: any) {
       return { success: false, error: e.message };
     }
+  }
+
+  async subscribeToClientQuotes(
+    callback: (payload: any) => void,
+  ): Promise<RealtimeChannel> {
+    const user = await this.auth.getCurrentClient();
+    const filter = user?.client_id ? `client_id=eq.${user.client_id}` : undefined;
+    return this.supabase
+      .channel('portal-client-quotes')
+      .on('postgres_changes' as any, { event: '*', schema: 'public', table: 'quotes', filter }, callback)
+      .subscribe();
   }
 }

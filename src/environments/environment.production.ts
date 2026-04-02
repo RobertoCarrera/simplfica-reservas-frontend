@@ -1,7 +1,8 @@
-{
-  "supabase": {
-    "url": "",
-    "anonKey": ""
+export const environment = {
+  supabase: {
+    url: '',
+    anonKey: '',
   },
-  "environment": "production"
-}
+  edgeFunctionsBaseUrl: '',
+  environment: 'production',
+};

@@ -13,8 +13,8 @@ import { PortalSidebarComponent } from './portal-sidebar.component';
       <app-portal-sidebar></app-portal-sidebar>
 
       <!-- Main Content Area -->
-      <main class="flex-1 ml-64 overflow-y-auto">
-        <div class="min-h-screen p-8">
+      <main class="flex-1 ml-64 min-h-screen overflow-y-auto">
+        <div class="p-8">
           <router-outlet></router-outlet>
         </div>
       </main>

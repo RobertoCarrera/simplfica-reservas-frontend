@@ -1,16 +1,11 @@
-import { Component, inject, signal, ViewChild } from "@angular/core";
+import { Component, inject, signal } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { RouterModule, Router } from "@angular/router";
-import { firstValueFrom } from "rxjs";
+import { RouterModule } from "@angular/router";
 import {
   ClientPortalService,
   ClientPortalInvoice,
-} from "../../../../services/client-portal.service";
-import { ToastService } from "../../../../services/toast.service";
-import {
-  PaymentMethodSelectorComponent,
-  PaymentSelection,
-} from "../../../payments/selector/payment-method-selector.component";
+} from "../../../../core/services/client-portal.service";
+import { ToastService } from "../../../../shared/services/toast.service";
 import { formatInvoiceNumber } from "../../../../models/invoice.model";
 import { isTrustedPaymentUrl } from "../../../../shared/payment-url.utils";
 
@@ -28,7 +23,7 @@ interface PaymentInfo {
 @Component({
   selector: "app-portal-invoices",
   standalone: true,
-  imports: [CommonModule, RouterModule, PaymentMethodSelectorComponent],
+  imports: [CommonModule, RouterModule],
   template: `
     <div class="p-4 sm:p-6 lg:p-8">
       <div class="max-w-5xl mx-auto">

@@ -1,4 +1,4 @@
-import { Injectable, signal } from "@angular/core";
+import { Injectable, signal, inject, NgZone } from "@angular/core";
 import {
   createClient,
   SupabaseClient,
@@ -13,6 +13,8 @@ import {
   PortalSession,
 } from "../ports/iportal-auth";
 import { RuntimeConfigService } from "../config/runtime-config.service";
+import { Router } from "@angular/router";
+import { environment } from '@env/environment';
 
 /**
  * PortalAuthService — Implementación de IPortalAuth para el portal cliente.
@@ -32,6 +34,15 @@ import { RuntimeConfigService } from "../config/runtime-config.service";
 @Injectable({ providedIn: "root" })
 export class PortalAuthService implements IPortalAuth {
   private supabase!: SupabaseClient;
+  private router = inject(Router);
+  private ngZone = inject(NgZone);
+  private runtimeConfig = inject(RuntimeConfigService);
+
+  // Session timeout: 1 hour max
+  private static readonly SESSION_MAX_AGE_MS = 60 * 60 * 1000;
+  private static readonly SESSION_CHECK_INTERVAL_MS = 60 * 1000;
+  private static readonly SESSION_START_KEY = 'portal_session_start';
+  private sessionCheckTimer: ReturnType<typeof setInterval> | null = null;
 
   // Reactive state
   private currentUserSubject = new BehaviorSubject<User | null>(null);
@@ -41,7 +52,7 @@ export class PortalAuthService implements IPortalAuth {
   private loadingSubject = new BehaviorSubject<boolean>(true);
 
   // Signals
-  isAuthenticated = signal<boolean>(false);
+  authState = signal<boolean>(false);
 
   // Observables públicos
   currentUser$ = this.currentUserSubject.asObservable();
@@ -55,17 +66,11 @@ export class PortalAuthService implements IPortalAuth {
   }
 
   private initializeClient(): void {
-    // RuntimeConfigService será inyectada — aquí usamos import dinámico
-    // para evitar dependencia circular en el constructor
-    // TODO: integrar con el sistema de config del portal (similar a CRM RuntimeConfigService)
-    const supabaseUrl =
-      (window as any).__RUNTIME_CONFIG__?.supabase?.url ||
-      import.meta.env?.["SUPABASE_URL"] ||
-      "";
-    const supabaseAnonKey =
-      (window as any).__RUNTIME_CONFIG__?.supabase?.anonKey ||
-      import.meta.env?.["SUPABASE_ANON_KEY"] ||
-      "";
+    // RuntimeConfigService is loaded via APP_INITIALIZER before any service is instantiated,
+    // so runtimeConfig.get() is already populated when this constructor runs.
+    const supabaseConfig = this.runtimeConfig.getSupabase();
+    const supabaseUrl = supabaseConfig?.url?.trim() || environment.supabase.url || '';
+    const supabaseAnonKey = supabaseConfig?.anonKey?.trim() || environment.supabase.anonKey || '';
 
     if (!supabaseUrl || !supabaseAnonKey) {
       console.warn(
@@ -89,6 +94,7 @@ export class PortalAuthService implements IPortalAuth {
 
       if (session?.user) {
         await this.setCurrentUser(session.user);
+        this.startSessionTimer();
       } else {
         this.clearUserData();
       }
@@ -103,9 +109,11 @@ export class PortalAuthService implements IPortalAuth {
       if (event === "SIGNED_IN" || event === "INITIAL_SESSION") {
         if (session?.user) {
           this.setCurrentUser(session.user);
+          this.startSessionTimer();
         }
       } else if (event === "SIGNED_OUT") {
         this.clearUserData();
+        this.stopSessionTimer();
       }
     });
   }
@@ -113,7 +121,7 @@ export class PortalAuthService implements IPortalAuth {
   private async setCurrentUser(user: User): Promise<void> {
     this.loadingSubject.next(true);
     this.currentUserSubject.next(user);
-    this.isAuthenticated.set(true);
+    this.authState.set(true);
 
     try {
       // Fetch portal user profile from client_portal_users + users
@@ -182,7 +190,60 @@ export class PortalAuthService implements IPortalAuth {
   private clearUserData(): void {
     this.currentUserSubject.next(null);
     this.portalUserSubject.next(null);
-    this.isAuthenticated.set(false);
+    this.authState.set(false);
+    this.stopSessionTimer();
+    try { sessionStorage.removeItem(PortalAuthService.SESSION_START_KEY); } catch { /* noop */ }
+  }
+
+  private startSessionTimer(): void {
+    // Record session start if not already set
+    if (!sessionStorage.getItem(PortalAuthService.SESSION_START_KEY)) {
+      sessionStorage.setItem(
+        PortalAuthService.SESSION_START_KEY,
+        Date.now().toString(),
+      );
+    }
+
+    this.stopSessionTimer();
+
+    this.ngZone.runOutsideAngular(() => {
+      this.sessionCheckTimer = setInterval(() => {
+        this.checkSessionExpiry();
+      }, PortalAuthService.SESSION_CHECK_INTERVAL_MS);
+    });
+
+    // Also check immediately
+    this.checkSessionExpiry();
+  }
+
+  private stopSessionTimer(): void {
+    if (this.sessionCheckTimer) {
+      clearInterval(this.sessionCheckTimer);
+      this.sessionCheckTimer = null;
+    }
+  }
+
+  private checkSessionExpiry(): void {
+    const startStr = sessionStorage.getItem(PortalAuthService.SESSION_START_KEY);
+    if (!startStr) return;
+
+    const elapsed = Date.now() - parseInt(startStr, 10);
+    if (elapsed >= PortalAuthService.SESSION_MAX_AGE_MS) {
+      console.warn('⏰ Portal session expired after 1 hour — logging out');
+      this.ngZone.run(() => {
+        this.expireSession();
+      });
+    }
+  }
+
+  private async expireSession(): Promise<void> {
+    this.stopSessionTimer();
+    this.clearUserData();
+    try { await this.supabase.auth.signOut(); } catch { /* noop */ }
+    this.router.navigate(['/login'], {
+      replaceUrl: true,
+      queryParams: { reason: 'session_expired' },
+    });
   }
 
   /**

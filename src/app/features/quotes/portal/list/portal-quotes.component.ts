@@ -4,7 +4,7 @@ import { RouterModule, Router, ActivatedRoute } from "@angular/router";
 import {
   ClientPortalService,
   ClientPortalQuote,
-} from "../../../../services/client-portal.service";
+} from "../../../../core/services/client-portal.service";
 import { RealtimeChannel } from "@supabase/supabase-js";
 
 @Component({

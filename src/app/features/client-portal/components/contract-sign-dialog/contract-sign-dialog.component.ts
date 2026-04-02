@@ -10,8 +10,8 @@ import {
   signal,
 } from "@angular/core";
 import { CommonModule } from "@angular/common";
-import { SignaturePadComponent } from "../../../shared/components/signature-pad/signature-pad.component";
-import { SafeHtmlPipe } from "../../../core/pipes/safe-html.pipe";
+import { PortalSignaturePadComponent as SignaturePadComponent } from "../../../../core/stubs/signature-pad.component";
+import { SafeHtmlPipe } from "../../../../core/pipes/safe-html.pipe";
 
 // STUB: Phase 3 - needs ContractsService integration
 

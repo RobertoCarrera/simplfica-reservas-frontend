@@ -10,6 +10,24 @@ export const PORTAL_ROUTES: Routes = [
   // Default redirect to dashboard
   { path: '', redirectTo: 'dashboard', pathMatch: 'full' },
 
+  // Login (no auth guard)
+  {
+    path: 'login',
+    loadComponent: () =>
+      import('./features/portal/login/portal-login.component').then(
+        (m) => m.PortalLoginComponent,
+      ),
+  },
+
+  // Auth callback (handles magic link redirect)
+  {
+    path: 'auth/callback',
+    loadComponent: () =>
+      import('./features/portal/auth-callback/portal-auth-callback.component').then(
+        (m) => m.PortalAuthCallbackComponent,
+      ),
+  },
+
   // Layout wrapper for authenticated routes
   {
     path: '',

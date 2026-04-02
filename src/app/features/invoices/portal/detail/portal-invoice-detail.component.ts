@@ -1,8 +1,8 @@
 import { Component, OnInit, inject, signal } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { ActivatedRoute, Router, RouterModule } from "@angular/router";
-import { ClientPortalService } from "../../../../services/client-portal.service";
-import { ToastService } from "../../../../services/toast.service";
+import { ClientPortalService } from "../../../../core/services/client-portal.service";
+import { ToastService } from "../../../../shared/services/toast.service";
 
 @Component({
   selector: "app-portal-invoice-detail",

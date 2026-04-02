@@ -3,7 +3,7 @@ import { CommonModule } from "@angular/common";
 import { ActivatedRoute } from "@angular/router";
 import { FormsModule } from "@angular/forms";
 import { RuntimeConfigService } from "../../../core/config/runtime-config.service";
-import { TranslocoPipe } from "@ng-js-core/transloco";
+import { TranslocoPipe } from "@jsverse/transloco";
 
 @Component({
   selector: "app-consent-portal",

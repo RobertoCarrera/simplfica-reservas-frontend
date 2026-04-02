@@ -1,7 +1,7 @@
 import { Component, OnInit, inject, signal } from "@angular/core";
 import { CommonModule } from "@angular/common";
 import { FormsModule } from "@angular/forms";
-import { IPortalAuth } from "../../../core/ports/iportal-auth";
+import { PortalAuthService } from "../../../core/services/portal-auth.service";
 import { ToastService } from "../../../shared/services/toast.service"; // STUB
 
 // STUB: Phase 3 - needs customers service and ClientGdprPanelComponent
@@ -62,7 +62,7 @@ import { ToastService } from "../../../shared/services/toast.service"; // STUB
   `,
 })
 export class PortalSettingsComponent implements OnInit {
-  private auth = inject(IPortalAuth);
+  private auth = inject(PortalAuthService);
   private toast = inject(ToastService); // STUB
 
   user: any = null;
