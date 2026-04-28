@@ -11,6 +11,7 @@ import {
 import { provideAnimations } from "@angular/platform-browser/animations";
 import { PORTAL_ROUTES } from "./portal.routes";
 import { RuntimeConfigService } from "./core/config/runtime-config.service";
+import { provideTransloco } from "@jsverse/transloco";
 
 function initRuntimeConfig() {
   const cfg = inject(RuntimeConfigService);
@@ -23,6 +24,20 @@ export const appConfig: ApplicationConfig = {
     provideRouter(PORTAL_ROUTES),
     provideHttpClient(),
     provideAnimations(),
+    provideTransloco({
+      config: {
+        defaultLang: "es",
+        availableLangs: ["es", "ca"],
+        reRenderOnLangChange: true,
+        missingHandler: {
+          useFallbackTranslation: true,
+        },
+      },
+      loader: async (lang: string) => {
+        const translations = await import(`../assets/i18n/${lang}.json`);
+        return translations.default ?? translations;
+      },
+    }),
     {
       provide: APP_INITIALIZER,
       useFactory: initRuntimeConfig,
