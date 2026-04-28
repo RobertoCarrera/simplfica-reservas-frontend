@@ -1,0 +1,15 @@
+{
+  "cookie": {
+    "title": "Usem cookies",
+    "description": "Algunes cookies son necessàries per al funcionament del lloc. Altres son opcionals i ens ajuden a millorar.",
+    "acceptAll": "Acceptar totes",
+    "configure": "Configurar",
+    "save": "Guardar",
+    "essential": "Essencials",
+    "essentialDesc": "Necessàries per al funcionament",
+    "analytics": "Analítiques",
+    "analyticsDesc": "Ens ajuden a entendre com fas servir el lloc",
+    "marketing": "Màrqueting",
+    "marketingDesc": "Per mostrar-te anuncis rellevants"
+  }
+}
