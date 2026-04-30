@@ -21,6 +21,7 @@
             "index": "src/index.html",
             "browser": "src/main.ts",
             "polyfills": ["zone.js"],
+            "serviceWorker": "ngsw-config.json",
             "tsConfig": "tsconfig.app.json",
             "inlineStyleLanguage": "scss",
             "allowedCommonJsDependencies": [],
