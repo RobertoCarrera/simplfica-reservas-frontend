@@ -1,6 +1,7 @@
-import { Component } from "@angular/core";
+import { Component, OnInit, inject } from "@angular/core";
 import { RouterOutlet } from "@angular/router";
 import { ToastComponent } from "./shared/ui/toast/toast.component";
+import { BrandingService } from "./core/services/branding.service";
 
 @Component({
   selector: "app-root",
@@ -16,6 +17,11 @@ import { ToastComponent } from "./shared/ui/toast/toast.component";
     `,
   ],
 })
-export class AppComponent {
-  title = "Simplify Portal";
+export class AppComponent implements OnInit {
+  private brandingService = inject(BrandingService);
+
+  async ngOnInit(): Promise<void> {
+    // Load company branding for dynamic theming
+    await this.brandingService.loadBranding();
+  }
 }
